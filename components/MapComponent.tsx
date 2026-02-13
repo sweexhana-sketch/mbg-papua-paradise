@@ -191,24 +191,36 @@ const MapComponent: React.FC<MapComponentProps> = ({
                                 });
 
                                 if (feature.properties) {
+                                    const props = feature.properties;
+                                    // Extract common road properties
+                                    const roadName = props.nm_jalan || props.Nm_Ruas || props.BRIDGE_NAM || 'Ruas Jalan';
+                                    const length = props.panjang_km || props.Panjang || props.BRIDGE_LEN;
+                                    const width = props.lebar_jalan_m || props.Lbr_Keras || props.BRIDGE_WID;
+                                    const condition = props.kondisi || props.Kon_Baik ? `Baik: ${props.Kon_Baik}%` : (props.BRIDGE_STA === 'N' ? 'Baik' : props.BRIDGE_STA) || '-';
+
                                     const popupContent = `
-                                        <div style="font-family: inherit; font-size: 13px; line-height: 1.4; color: #333 text-align: left;">
-                                            <div style="font-weight: 800; color: #1e40af; border-bottom: 2px solid #3b82f6; margin-bottom: 8px; padding-bottom: 4px; text-transform: uppercase;">
-                                                ${layer.name}
+                                        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 200px;">
+                                            <div style="background-color: ${layer.name === 'Jalan Nasional' ? '#eff6ff' : '#fef2f2'}; padding: 8px 12px; border-radius: 6px; border-left: 4px solid ${layer.name === 'Jalan Nasional' ? '#2563eb' : '#dc2626'}; margin-bottom: 8px;">
+                                                <div style="font-weight: 800; color: ${layer.name === 'Jalan Nasional' ? '#1e40af' : '#991b1b'}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                    ${layer.name}
+                                                </div>
+                                                <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                    ${roadName}
+                                                </div>
                                             </div>
-                                            <div style="max-height: 200px; overflow-y: auto;">
-                                                ${Object.entries(feature.properties)
-                                            .filter(([k]) => k !== '_ant_id')
-                                            .map(([key, val]) => `
-                                                        <div style="margin-bottom: 4px; display: flex; align-items: flex-start;">
-                                                            <span style="font-weight: 700; color: #666; width: 35%; flex-shrink: 0;">${key}:</span> 
-                                                            <span style="color: #000; flex: 1; word-break: break-all;">${val}</span>
-                                                        </div>
-                                                    `).join('')}
+                                            
+                                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                ${length ? `<span style="color: #64748b; font-weight: 500;">Panjang:</span> <span style="font-weight: 600; color: #334155;">${length} km</span>` : ''}
+                                                ${width ? `<span style="color: #64748b; font-weight: 500;">Lebar:</span> <span style="font-weight: 600; color: #334155;">${width} m</span>` : ''}
+                                                ${condition ? `<span style="color: #64748b; font-weight: 500;">Kondisi:</span> <span style="font-weight: 600; color: ${condition.toString().toLowerCase().includes('baik') ? '#166534' : '#b91c1c'};">${condition}</span>` : ''}
+                                            </div>
+
+                                            <div style="margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: right; border-top: 1px dashed #e2e8f0; padding-top: 4px;">
+                                                Klik untuk detail
                                             </div>
                                         </div>
                                     `;
-                                    leafletLayer.bindPopup(popupContent, { maxWidth: 300 });
+                                    leafletLayer.bindPopup(popupContent, { maxWidth: 300, className: 'custom-popup' });
                                 }
                             }}
                         />
