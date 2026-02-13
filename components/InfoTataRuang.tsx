@@ -351,11 +351,11 @@ const InfoTataRuang: React.FC = () => {
                                 Jam operasional: <strong>Senin - Jumat (08.00 - 16.00 WIT)</strong>
                             </p>
                             <button
-                                onClick={() => window.open('https://wa.me/6282198933685', '_blank')}
+                                onClick={() => window.open('https://wa.me/6282293234424', '_blank')}
                                 className="bg-green-500 hover:bg-green-400 text-white px-6 py-3 rounded-xl font-bold w-full transition-all active:scale-95 shadow-lg"
                             >
                                 <i className="fab fa-whatsapp mr-2"></i>
-                                Klik untuk Chat: 0821-9893-3685
+                                Klik untuk Chat: 0822-9323-4424
                             </button>
                         </div>
 

@@ -176,7 +176,7 @@ const GeminiChat: React.FC = () => {
     };
 
     // Construct WhatsApp Message
-    const phoneNumber = '6282198933685';
+    const phoneNumber = '6282293234424';
     const statusJalan = finalReport.jurisdiction === 'Provinsi' ? '🔴 JALAN PROVINSI' : (finalReport.jurisdiction === 'Nasional' ? '🔵 JALAN NASIONAL' : '⚪ LUAR JARINGAN');
 
     const message = `Halo Dinas PUPR Papua Barat Daya, saya Pace/Mace ingin melaporkan jalan rusak melalui Asisten Anti-Gravity.

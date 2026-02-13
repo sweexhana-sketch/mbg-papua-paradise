@@ -1,56 +1,54 @@
 /**
- * WhatsApp Service (BlazWA Integration)
- * Solusi untuk mengirim pesan otomatis via REST API Blazwa
+ * WhatsApp Service (Fonnte Integration)
+ * Solusi untuk mengirim pesan otomatis via REST API Fonnte
  */
 
-const BLAZWA_API_KEY = import.meta.env.VITE_BLAZWA_API_KEY;
-const BLAZWA_ENDPOINT = 'https://app.blazwa.com/api/send-message';
+const FONNTE_API_KEY = import.meta.env.VITE_FONNTE_API_KEY;
+const FONNTE_ENDPOINT = 'https://api.fonnte.com/send';
 
-export interface BlazwaResponse {
+export interface FonnteResponse {
     status: boolean;
     message: string;
     data?: any;
 }
 
 /**
- * Mengirim pesan teks via BlazWA API
+ * Mengirim pesan teks via Fonnte API
  * @param to Nomor tujuan (format 628...)
  * @param message Isi pesan
  */
-export async function sendBlazwaMessage(to: string, message: string): Promise<BlazwaResponse> {
-    if (!BLAZWA_API_KEY || BLAZWA_API_KEY.includes('Paste_Kode')) {
-        console.warn('WhatsApp Service: BLAZWA_API_KEY belum diatur di .env');
+export async function sendBlazwaMessage(to: string, message: string): Promise<FonnteResponse> {
+    // Note: Nama function tetap sendBlazwaMessage agar tidak merusak import di file lain, 
+    // namun logic sudah bermigrasi ke Fonnte.
+
+    if (!FONNTE_API_KEY || FONNTE_API_KEY.includes('Paste_Kode')) {
+        console.warn('WhatsApp Service: VITE_FONNTE_API_KEY belum diatur di .env');
         return { status: false, message: 'API Key belum diatur' };
     }
 
     try {
-        const response = await fetch(BLAZWA_ENDPOINT, {
+        const response = await fetch(FONNTE_ENDPOINT, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${BLAZWA_API_KEY}`
+                'Authorization': FONNTE_API_KEY
             },
-            body: JSON.stringify({
-                token: BLAZWA_API_KEY,
-                device_key: BLAZWA_API_KEY, // Mencoba device_key sesuai request Pace
-                number: to,
-                phone: to,
-                receiver: to,
+            body: new URLSearchParams({
+                target: to,
                 message: message
             })
         });
 
         const data = await response.json();
-        console.log('BlazWA API Response:', data);
+        console.log('Fonnte API Response:', data);
 
         return {
-            status: data.status === true || data.status === 'success',
-            message: data.message || 'Selesai',
+            status: data.status === true,
+            message: data.reason || 'Selesai',
             data: data
         };
     } catch (error) {
-        console.error('BlazWA API Error:', error);
-        return { status: false, message: 'Gagal terhubung ke server BlazWA' };
+        console.error('Fonnte API Error:', error);
+        return { status: false, message: 'Gagal terhubung ke server Fonnte' };
     }
 }
 

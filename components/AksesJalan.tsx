@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import MapComponent from './MapComponent';
 import RoadBridgeMatrix from './RoadBridgeMatrix';
 import { sendBlazwaMessage } from '../services/whatsappService';
+import { verifyLocation, formatVerificationResult } from '../services/spatialVerificationClient';
+import { uploadImage, compressImage } from '../services/imageUploadService';
+import { saveToGoogleSheets } from '../services/googleSheetsService';
 
 const AksesJalan: React.FC = () => {
     const navigate = useNavigate();
@@ -11,6 +14,12 @@ const AksesJalan: React.FC = () => {
         description: '',
         coordinates: '',
     });
+
+    // New states for photo upload and verification
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string>('');
+    const [verificationResult, setVerificationResult] = useState<any>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // States for Live Map Integration
     const [visitorMarker, setVisitorMarker] = useState<[number, number] | null>(null);
@@ -151,27 +160,120 @@ const AksesJalan: React.FC = () => {
         );
     };
 
-    const handleReportSubmit = (e: React.FormEvent) => {
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setPhotoFile(file);
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPhotoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleReportSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
 
-        const phoneNumber = '6282198933685';
-        const message = `Halo Dinas PUPR Papua Barat Daya, saya ingin melaporkan jalan rusak.
-        
+        try {
+            // 1. Validate coordinates
+            if (!reportForm.coordinates) {
+                alert('Mohon ambil lokasi GPS terlebih dahulu dengan klik tombol "Gunakan Lokasi Saat Ini"');
+                setIsSubmitting(false);
+                return;
+            }
+
+            // 2. Parse coordinates
+            const [latStr, lngStr] = reportForm.coordinates.split(',').map(s => s.trim());
+            const lat = parseFloat(latStr);
+            const lng = parseFloat(lngStr);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Koordinat tidak valid. Mohon ambil lokasi ulang.');
+                setIsSubmitting(false);
+                return;
+            }
+
+            // 3. Perform spatial verification
+            console.log('Verifying location...');
+            const verification = await verifyLocation(lat, lng);
+            setVerificationResult(verification);
+
+            // 4. Upload photo if exists
+            let photoUrl = '';
+            if (photoFile) {
+                console.log('Uploading photo...');
+                const compressed = await compressImage(photoFile);
+                const uploadResult = await uploadImage(compressed);
+                if (uploadResult.success && uploadResult.url) {
+                    photoUrl = uploadResult.url;
+                }
+            }
+
+            // 5. Prepare WhatsApp message with verification result
+            const phoneNumber = '6282293234424';
+            const verificationText = verification.result
+                ? `✅ JALAN PROVINSI - ${verification.roadName}`
+                : `⚖️ BUKAN JALAN PROVINSI - Akan diteruskan ke instansi terkait`;
+
+            const message = `Halo Dinas PUPR Papua Barat Daya, saya ingin melaporkan jalan rusak.
+
+*HASIL VERIFIKASI OTOMATIS:*
+${verificationText}
+
 *Lokasi:* ${reportForm.location}
-*Koordinat:* ${reportForm.coordinates || '-'}
-*Deskripsi:* ${reportForm.description}`;
+*Koordinat:* ${reportForm.coordinates}
+*Deskripsi:* ${reportForm.description}
+${photoUrl ? `\n*Foto:* Terlampir` : ''}`;
 
-        const encodedMessage = encodeURIComponent(message);
-        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+            // 6. Save to Google Sheets
+            console.log('Saving to Google Sheets...');
+            const sheetData = {
+                timestamp: new Date().toISOString(),
+                reporterPhone: '-', // Will be filled from WhatsApp
+                location: reportForm.location,
+                coordinates: reportForm.coordinates,
+                latitude: lat,
+                longitude: lng,
+                verificationStatus: verification.result ? 'Jalan Provinsi' : 'Bukan Jalan Provinsi',
+                roadName: verification.roadName || '-',
+                description: reportForm.description,
+                photoUrl: photoUrl || '-',
+                status: 'Baru' as const
+            };
 
-        sendBlazwaMessage(phoneNumber, message).then(res => {
-            if (res.status) console.log('BlazWA: Notifikasi formulir terkirim');
-        });
+            const sheetsResult = await saveToGoogleSheets(sheetData);
+            if (!sheetsResult.success) {
+                console.warn('Failed to save to Google Sheets:', sheetsResult.error);
+                // Continue anyway - don't block WhatsApp send
+            }
 
-        window.open(whatsappUrl, '_blank');
+            // 7. Send to WhatsApp
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
 
-        alert('Laporan Anda telah disiapkan. Anda akan diarahkan ke WhatsApp untuk mengirim laporan.');
-        setReportForm({ location: '', description: '', coordinates: '' });
+            sendBlazwaMessage(phoneNumber, message).then(res => {
+                if (res.status) console.log('BlazWA: Notifikasi formulir terkirim');
+            });
+
+            window.open(whatsappUrl, '_blank');
+
+            // 8. Show success message
+            alert(`Laporan berhasil diverifikasi!\n\n${verificationText}\n\nAnda akan diarahkan ke WhatsApp untuk mengirim laporan.`);
+
+            // 9. Reset form
+            setReportForm({ location: '', description: '', coordinates: '' });
+            setPhotoFile(null);
+            setPhotoPreview('');
+            setVerificationResult(null);
+        } catch (error) {
+            console.error('Error submitting report:', error);
+            alert('Terjadi kesalahan saat memproses laporan. Silakan coba lagi.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -298,8 +400,8 @@ const AksesJalan: React.FC = () => {
                                                     <input
                                                         type="checkbox"
                                                         className={`w-5 h-5 rounded border-gray-300 focus:ring-opacity-50 cursor-pointer ${layer.name === 'Jalan Nasional' ? 'text-blue-600 focus:ring-blue-500' :
-                                                                layer.name === 'Jalan Provinsi' ? 'text-red-600 focus:ring-red-500' :
-                                                                    'text-purple-600 focus:ring-purple-500'
+                                                            layer.name === 'Jalan Provinsi' ? 'text-red-600 focus:ring-red-500' :
+                                                                'text-purple-600 focus:ring-purple-500'
                                                             }`}
                                                         checked={!!activeLayers[layer.name]}
                                                         onChange={() => toggleLayer(layer.name)}
@@ -316,8 +418,8 @@ const AksesJalan: React.FC = () => {
                                                     <div className="flex justify-between items-center mb-1">
                                                         <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Transparansi</span>
                                                         <span className={`text-[10px] font-black ${layer.name === 'Jalan Nasional' ? 'text-blue-600' :
-                                                                layer.name === 'Jalan Provinsi' ? 'text-red-600' :
-                                                                    'text-purple-600'
+                                                            layer.name === 'Jalan Provinsi' ? 'text-red-600' :
+                                                                'text-purple-600'
                                                             }`}>{Math.round((layerOpacities[layer.name] ?? 0.8) * 100)}%</span>
                                                     </div>
                                                     <input
@@ -328,8 +430,8 @@ const AksesJalan: React.FC = () => {
                                                         value={layerOpacities[layer.name] ?? 0.8}
                                                         onChange={(e) => handleOpacityChange(layer.name, parseFloat(e.target.value))}
                                                         className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer ${layer.name === 'Jalan Nasional' ? 'accent-blue-600' :
-                                                                layer.name === 'Jalan Provinsi' ? 'accent-red-600' :
-                                                                    'accent-purple-600'
+                                                            layer.name === 'Jalan Provinsi' ? 'accent-red-600' :
+                                                                'accent-purple-600'
                                                             }`}
                                                     />
                                                 </div>
@@ -455,26 +557,54 @@ const AksesJalan: React.FC = () => {
                                             accept="image/*"
                                             capture="environment"
                                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                            onChange={(e) => {
-                                                if (e.target.files && e.target.files[0]) {
-                                                    alert('Foto berhasil diambil: ' + e.target.files[0].name);
-                                                }
-                                            }}
+                                            onChange={handlePhotoChange}
                                         />
-                                        <div className="space-y-2">
-                                            <i className="fas fa-camera text-4xl text-gray-400 group-hover:text-blue-500 transition-colors"></i>
-                                            <p className="text-gray-600 text-sm font-semibold text-blue-900 leading-tight">Klik untuk Ambil Foto Langsung</p>
-                                            <p className="text-gray-400 text-xs mt-1">Otomatis membuka kamera handphone</p>
-                                        </div>
+                                        {!photoPreview ? (
+                                            <div className="space-y-2">
+                                                <i className="fas fa-camera text-4xl text-gray-400 group-hover:text-blue-500 transition-colors"></i>
+                                                <p className="text-gray-600 text-sm font-semibold text-blue-900 leading-tight">Klik untuk Ambil Foto Langsung</p>
+                                                <p className="text-gray-400 text-xs mt-1">Otomatis membuka kamera handphone</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <img src={photoPreview} alt="Preview" className="max-w-full max-h-48 mx-auto rounded-lg" />
+                                                <p className="text-sm text-green-600 font-semibold">✓ Foto berhasil diambil</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
+                                {/* Verification Result Display */}
+                                {verificationResult && (
+                                    <div className={`p-4 rounded-lg ${verificationResult.result ? 'bg-green-50 border-2 border-green-500' : 'bg-yellow-50 border-2 border-yellow-500'}`}>
+                                        <p className="font-bold text-gray-900 mb-1">
+                                            {verificationResult.result ? '✅ JALAN PROVINSI' : '⚖️ BUKAN JALAN PROVINSI'}
+                                        </p>
+                                        {verificationResult.roadName && (
+                                            <p className="text-sm text-gray-700">Ruas: {verificationResult.roadName}</p>
+                                        )}
+                                        {!verificationResult.result && (
+                                            <p className="text-sm text-gray-700 mt-1">Laporan akan diteruskan ke instansi terkait</p>
+                                        )}
+                                    </div>
+                                )}
+
                                 <button
                                     type="submit"
-                                    className="w-full bg-blue-900 hover:bg-blue-800 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95"
+                                    disabled={isSubmitting}
+                                    className={`w-full bg-blue-900 hover:bg-blue-800 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-95 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    <i className="fas fa-paper-plane mr-2"></i>
-                                    Kirim Laporan
+                                    {isSubmitting ? (
+                                        <>
+                                            <i className="fas fa-spinner fa-spin mr-2"></i>
+                                            Memproses Laporan...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-paper-plane mr-2"></i>
+                                            Kirim Laporan
+                                        </>
+                                    )}
                                 </button>
                             </form>
                         </div>
@@ -530,7 +660,7 @@ const AksesJalan: React.FC = () => {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <i className="fab fa-whatsapp text-green-600"></i>
-                                        <span className="text-gray-700">0821-9893-3685</span>
+                                        <span className="text-gray-700">0822-9323-4424</span>
                                     </div>
                                 </div>
                             </div>
