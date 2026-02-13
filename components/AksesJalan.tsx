@@ -103,7 +103,7 @@ const AksesJalan: React.FC = () => {
     };
 
     const gisLayers = useMemo(() => [
-        { url: '/data/jalan_nas.json', name: 'Jalan Nasional', color: '#2563eb', weight: 4 },
+        { url: '/data/jalan_nasional_v2.json', name: 'Jalan Nasional', color: '#2563eb', weight: 4 },
         { url: '/data/jlnprov.json', name: 'Jalan Provinsi', color: '#dc2626', weight: 4 },
         { url: '/data/jembatan nasional.json', name: 'Jembatan Nasional', color: '#7e22ce', weight: 6 },
     ], []);
