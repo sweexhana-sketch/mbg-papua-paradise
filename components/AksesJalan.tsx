@@ -103,7 +103,7 @@ const AksesJalan: React.FC = () => {
     };
 
     const gisLayers = useMemo(() => [
-        { url: '/data/jalan_nasional_v2.json', name: 'Jalan Nasional', color: '#2563eb', weight: 4 },
+
         { url: '/data/jlnprov.json', name: 'Jalan Provinsi', color: '#dc2626', weight: 4 },
         { url: '/data/jembatan nasional.json', name: 'Jembatan Nasional', color: '#7e22ce', weight: 6 },
     ], []);
@@ -290,7 +290,7 @@ ${photoUrl ? `\n*Foto:* Terlampir` : ''}`;
                             <span className="font-semibold">Kembali ke Beranda</span>
                         </button>
                     )}
-                    <h1 className="text-4xl font-extrabold mb-4">Akses Jalan <span className="text-sm font-normal opacity-70">(v2.2 Live Verif)</span></h1>
+                    <h1 className="text-4xl font-extrabold mb-4">Akses Jalan</h1>
                     <p className="text-xl text-blue-100 max-w-3xl">
                         Informasi Infrastruktur Konektivitas di Provinsi Papua Barat Daya
                     </p>
