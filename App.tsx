@@ -12,8 +12,45 @@ import AksesJalan from './components/AksesJalan';
 import DataSpasial from './components/DataSpasial';
 import SPM from './components/SPM';
 import PertekAir from './components/PertekAir';
-import AdminAntiGravity from './components/AdminAntiGravity';
+import LoginAdmin from './components/LoginAdmin';
+import AdminLayout from './components/AdminLayout';
+import DashboardAdminAduan from './components/DashboardAdminAduan';
+import DashboardAdminBerita from './components/DashboardAdminBerita';
 import { MOCK_NEWS } from './constants';
+import { useState, useEffect } from 'react';
+
+const NewsSection: React.FC = () => {
+  const [news, setNews] = useState(MOCK_NEWS);
+
+  useEffect(() => {
+    const savedNews = localStorage.getItem('pbd_news_data');
+    if (savedNews) {
+      setNews(JSON.parse(savedNews));
+    }
+  }, []);
+
+  return (
+    <div className="grid md:grid-cols-3 gap-8">
+      {news.map((item) => (
+        <article key={item.id} className="group cursor-pointer">
+          <div className="relative h-64 rounded-3xl overflow-hidden mb-6 shadow-lg">
+            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+            <div className="absolute top-4 left-4 bg-yellow-500 text-blue-900 text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest">
+              {item.category}
+            </div>
+          </div>
+          <span className="text-gray-400 text-sm font-medium">{item.date}</span>
+          <h3 className="text-xl font-bold text-gray-900 mt-2 mb-4 group-hover:text-blue-900 transition-colors">
+            {item.title}
+          </h3>
+          <p className="text-gray-600 line-clamp-2 leading-relaxed">
+            {item.summary}
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+};
 
 const HomePage: React.FC = () => (
   <main className="flex-grow">
@@ -134,25 +171,7 @@ const HomePage: React.FC = () => (
           </button>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {MOCK_NEWS.map((news) => (
-            <article key={news.id} className="group cursor-pointer">
-              <div className="relative h-64 rounded-3xl overflow-hidden mb-6 shadow-lg">
-                <img src={news.imageUrl} alt={news.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                <div className="absolute top-4 left-4 bg-yellow-500 text-blue-900 text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest">
-                  {news.category}
-                </div>
-              </div>
-              <span className="text-gray-400 text-sm font-medium">{news.date}</span>
-              <h3 className="text-xl font-bold text-gray-900 mt-2 mb-4 group-hover:text-blue-900 transition-colors">
-                {news.title}
-              </h3>
-              <p className="text-gray-600 line-clamp-2 leading-relaxed">
-                {news.summary}
-              </p>
-            </article>
-          ))}
-        </div>
+        <NewsSection />
       </div>
     </section>
 
@@ -184,7 +203,12 @@ const App: React.FC = () => {
           <Route path="/akses-jalan" element={<AksesJalan />} />
           <Route path="/data-spasial" element={<DataSpasial />} />
           <Route path="/pertek-air" element={<PertekAir />} />
-          <Route path="/admin-anti-gravity" element={<AdminAntiGravity />} />
+          <Route path="/admin/login" element={<LoginAdmin />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route path="dashboard" element={<Navigate to="/admin/aduan" replace />} />
+            <Route path="aduan" element={<DashboardAdminAduan />} />
+            <Route path="berita" element={<DashboardAdminBerita />} />
+          </Route>
           <Route path="/spm" element={<SPM />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

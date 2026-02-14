@@ -1,9 +1,9 @@
 const fs = require('fs');
-const path = 'd:/shp file/dinas-pupr-papua-barat-daya-tes/public/data/jalan nasional.json';
+const path = 'd:/calvin file/unduhan/papua barat daya web/mbg-papua-paradise-main/public/data/jalan_nasional_v2.json';
 
 const fd = fs.openSync(path, 'r');
-const buffer = Buffer.alloc(100000);
-fs.readSync(fd, buffer, 0, 100000, 0);
+const buffer = Buffer.alloc(5000000);
+fs.readSync(fd, buffer, 0, 5000000, 0);
 const content = buffer.toString();
 const propIndex = content.indexOf('"properties":');
 if (propIndex !== -1) {

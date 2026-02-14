@@ -22,3 +22,16 @@ export interface InfraStats {
   name: string;
   value: number;
 }
+
+export interface RoadReport {
+  id?: string;
+  lokasi_jalan: string;
+  latitude: string;
+  longitude: string;
+  deskripsi: string;
+  image_url: string;
+  jurisdiction: string;
+  timestamp: string;
+  source: string;
+  status?: 'Baru' | 'Diproses' | 'Selesai' | 'Diteruskan';
+}

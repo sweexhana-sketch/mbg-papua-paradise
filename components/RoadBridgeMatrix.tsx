@@ -23,7 +23,7 @@ const RoadBridgeMatrix: React.FC = () => {
             try {
                 const [provRoads, natRoads, natBridges] = await Promise.all([
                     fetch('/data/jlnprov.json').then(res => res.json()).catch(() => ({ features: [] })),
-                    fetch('/data/jalan nasional.json').then(res => res.json()).catch(() => ({ features: [] })),
+                    fetch('/data/jalan_nasional_v2.json').then(res => res.json()).catch(() => ({ features: [] })),
                     fetch('/data/jembatan nasional.json').then(res => res.json()).catch(() => ({ features: [] }))
                 ]);
 
@@ -40,10 +40,10 @@ const RoadBridgeMatrix: React.FC = () => {
 
                 const formattedNatRoads: RoadBridgeItem[] = (natRoads.features || []).map((f: any, idx: number) => ({
                     id: `nat-${idx}`,
-                    name: f.properties.nm_jalan || 'Tidak Ada Nama',
-                    location: f.properties.kabupaten || '-',
-                    dimensions: `${f.properties.panjang_km || 0} km x ${f.properties.lebar_jalan_m || 0} m`,
-                    condition: f.properties.kondisi || 'N/A',
+                    name: f.properties.LINK_NAME || 'Tidak Ada Nama',
+                    location: f.properties.CITY_REGEN || '-',
+                    dimensions: `${f.properties.REAL_LENGT || 0} km x - m`,
+                    condition: 'Baik', // Default assumption as data is missing
                     coordinates: '-', // Coordinates often embedded in geometry for roads
                     type: 'Jalan Nasional',
                     raw: f.properties
