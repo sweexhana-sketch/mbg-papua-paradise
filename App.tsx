@@ -12,6 +12,7 @@ import AksesJalan from './components/AksesJalan';
 import DataSpasial from './components/DataSpasial';
 import SPM from './components/SPM';
 import PertekAir from './components/PertekAir';
+import PBG from './components/PBG';
 import LoginAdmin from './components/LoginAdmin';
 import AdminLayout from './components/AdminLayout';
 import DashboardAdminAduan from './components/DashboardAdminAduan';
@@ -60,7 +61,7 @@ const HomePage: React.FC = () => (
     <section id="layanan" className="relative -mt-12 z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
         {[
-          { title: 'Izin Bangunan (PBG)', icon: 'fa-building', color: 'bg-white text-blue-900', path: '/' },
+          { title: 'Izin Bangunan (PBG)', icon: 'fa-building', color: 'bg-white text-blue-900', path: '/pbg' },
           { title: 'Pertek Air Permukaan', icon: 'fa-water', color: 'bg-white text-blue-900', path: '/pertek-air' },
           { title: 'Info Tata Ruang', icon: 'fa-map-marked-alt', color: 'bg-white text-blue-900', path: '/info-tata-ruang' },
           { title: 'Akses Jalan', icon: 'fa-road', color: 'bg-white text-blue-900', path: '/akses-jalan' },
@@ -203,6 +204,7 @@ const App: React.FC = () => {
           <Route path="/akses-jalan" element={<AksesJalan />} />
           <Route path="/data-spasial" element={<DataSpasial />} />
           <Route path="/pertek-air" element={<PertekAir />} />
+          <Route path="/pbg" element={<PBG />} />
           <Route path="/admin/login" element={<LoginAdmin />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<Navigate to="/admin/aduan" replace />} />

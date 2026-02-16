@@ -4,15 +4,71 @@ import MapComponent from './MapComponent';
 
 const InfoTataRuang: React.FC = () => {
     const navigate = useNavigate();
-    // 1. Array Data RTRW
-    const gisLayers = useMemo(() => [
-        { id: 'btskab_2', name: 'Batas Kabupaten', url: '/data/btskab_2.json', color: '#dc2626', icon: 'fa-map-marked' },
-        { id: 'desapbd2', name: 'Batas Desa', url: '/data/desapbd2.json', color: '#94a3b8', icon: 'fa-map' },
-        { id: 'jalan_nasional', name: 'Jalan Nasional', url: '/data/jalan nasional.json', color: '#2563eb', icon: 'fa-road' },
-        { id: 'hutan', name: 'Kawasan Hutan', url: '/data/kwsnhtn 1.json', color: '#15803d', icon: 'fa-tree' },
-        { id: 'kemampuan_lahan', name: 'Kemampuan Lahan', url: '/data/kemampuan lahan B.json', color: '#713f12', icon: 'fa-mountain' },
-        { id: 'bendungan', name: 'Bendungan', url: '/data/bendungan pbd.json', color: '#1d4ed8', icon: 'fa-water-reduc' },
-        { id: 'pengendali_banjir', name: 'Pengendali Banjir', url: '/data/pengendali banjir pbd.json', color: '#0369a1', icon: 'fa-shield-halved' },
+    // 1. Layer Groups Definition
+    const layerGroups = useMemo(() => [
+        {
+            title: 'Batas Administrasi',
+            icon: 'fa-map-marked',
+            layers: [
+                { id: 'btskab_2', name: 'Batas Kabupaten', url: '/data/btskab_2.json', color: '#dc2626', icon: 'fa-map-marked' },
+                { id: 'desapbd2', name: 'Batas Desa', url: '/data/desapbd2.json', color: '#94a3b8', icon: 'fa-map' }
+            ]
+        },
+        {
+            title: 'Jaringan Jalan',
+            icon: 'fa-road',
+            layers: [
+                { id: 'jalan_nasional', name: 'Jalan Nasional', url: '/data/jalan_nasional_v2.json', color: '#2563eb', icon: 'fa-road' },
+                { id: 'jalan_provinsi', name: 'Jalan Provinsi', url: '/data/jlnprov.json', color: '#dc2626', icon: 'fa-road' }
+            ]
+        },
+        {
+            title: 'Kawasan Hutan',
+            icon: 'fa-tree',
+            layers: [
+                {
+                    id: 'hutan_lindung',
+                    name: 'Hutan Lindung',
+                    url: '/data/kwsnhtn 1.json',
+                    color: '#166534',
+                    icon: 'fa-tree',
+                    filter: (feature: any) => feature.properties?.NAMOBJ?.includes('Hutan Lindung')
+                },
+                {
+                    id: 'hutan_produksi',
+                    name: 'Hutan Produksi',
+                    url: '/data/kwsnhtn 1.json',
+                    color: '#facc15',
+                    icon: 'fa-tree',
+                    filter: (feature: any) => feature.properties?.NAMOBJ?.includes('Hutan Produksi')
+                },
+                {
+                    id: 'hutan_konservasi',
+                    name: 'Kawasan Suaka/Pelestarian Alam',
+                    url: '/data/kwsnhtn 1.json',
+                    color: '#9333ea',
+                    icon: 'fa-leaf',
+                    filter: (feature: any) => feature.properties?.NAMOBJ?.includes('KSA') || feature.properties?.NAMOBJ?.includes('KPA')
+                },
+                {
+                    id: 'apl',
+                    name: 'Areal Penggunaan Lain',
+                    url: '/data/kwsnhtn 1.json',
+                    color: '#a3a3a3',
+                    icon: 'fa-layer-group',
+                    filter: (feature: any) => feature.properties?.NAMOBJ?.includes('Areal Penggunaan Lain') || feature.properties?.NAMOBJ?.includes('APL')
+                }
+            ]
+        },
+        {
+            title: 'Informasi Lainnya',
+            icon: 'fa-info-circle',
+            layers: [
+                { id: 'kemampuan_lahan', name: 'Kemampuan Lahan', url: '/data/kemampuan lahan B.json', color: '#713f12', icon: 'fa-mountain' },
+                { id: 'bendungan', name: 'Bendungan', url: '/data/bendungan pbd.json', color: '#1d4ed8', icon: 'fa-water-reduc' },
+                { id: 'pengendali_banjir', name: 'Pengendali Banjir', url: '/data/pengendali banjir pbd.json', color: '#0369a1', icon: 'fa-shield-halved' }
+            ]
+        }
     ], []);
 
     const documents = [
@@ -35,28 +91,101 @@ const InfoTataRuang: React.FC = () => {
     ];
 
     // 2. State Management for GIS
+    // Initialize active layers (defaulting some to true)
     const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({
         'Batas Kabupaten': true,
-        'Kawasan Hutan': true,
+        // No specific forest sub-layers on by default to avoid clutter, allowing user to choose
     });
+
+    // Manage expanded groups state
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+        'Batas Administrasi': true,
+        'Jaringan Jalan': true,
+        'Kawasan Hutan': true,
+        'Informasi Lainnya': true
+    });
+
     const [layerOpacities, setLayerOpacities] = useState<Record<string, number>>({});
 
-    const toggleLayer = (name: string) => {
-        setActiveLayers(prev => ({ ...prev, [name]: !prev[name] }));
+    const toggleLayer = (id: string, name: string) => {
+        // Use ID for tracking if name is not unique (though names here are unique enough for display, ID is safer for state)
+        // But the previous MapComponent logic relies on 'visible' prop derived from state.
+        // Let's stick to using ID for state keys to be robust
+        setActiveLayers(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    const handleOpacityChange = (name: string, value: number) => {
-        setLayerOpacities(prev => ({ ...prev, [name]: value }));
+    const toggleGroup = (groupTitle: string) => {
+        setExpandedGroups(prev => ({ ...prev, [groupTitle]: !prev[groupTitle] }));
     };
 
-    const geoJsonLayers = useMemo(() =>
-        gisLayers.map(layer => ({
-            url: layer.url,
-            name: layer.name,
-            visible: !!activeLayers[layer.name],
-            style: { color: layer.color, weight: 2 },
-            opacity: layerOpacities[layer.name] !== undefined ? layerOpacities[layer.name] : 0.3
-        })), [gisLayers, activeLayers, layerOpacities]);
+    const handleOpacityChange = (id: string, value: number) => {
+        setLayerOpacities(prev => ({ ...prev, [id]: value }));
+    };
+
+    // Flatten layers for MapComponent consumption with OPTIMIZATION for Forest Layer
+    const geoJsonLayers = useMemo(() => {
+        const layers = [];
+
+        // 1. Process Non-Forest Layers normally
+        layerGroups.forEach(group => {
+            if (group.title === 'Kawasan Hutan') return; // Skip forest for now
+
+            group.layers.forEach(layer => {
+                if (activeLayers[layer.id]) {
+                    layers.push({
+                        url: layer.url,
+                        name: layer.name,
+                        visible: true,
+                        style: { color: layer.color, weight: 2 },
+                        opacity: layerOpacities[layer.id] !== undefined ? layerOpacities[layer.id] : 0.3,
+                        filter: layer.filter
+                    });
+                }
+            });
+        });
+
+        // 2. Process Forest Layer as a SINGLE consolidated layer if any forest sub-layer is active
+        const forestGroup = layerGroups.find(g => g.title === 'Kawasan Hutan');
+        const activeForestLayers = forestGroup?.layers.filter(l => activeLayers[l.id]);
+
+        if (activeForestLayers && activeForestLayers.length > 0) {
+            layers.push({
+                url: '/data/kwsnhtn 1.json',
+                name: 'Kawasan Hutan', // Unified name
+                visible: true,
+                opacity: 0.6, // Default opacity for forest
+                _updateKey: activeForestLayers.map(l => l.id).join(','), // Trigger re-render when active sub-layers change
+                // Dynamic Style based on feature type
+                style: (feature: any) => {
+                    const props = feature.properties || {};
+                    const namobj = props.NAMOBJ || '';
+
+                    // Find which sub-layer this feature belongs to
+                    if (namobj.includes('Hutan Lindung')) return { color: '#166534', weight: 1, fillOpacity: 0.6 };
+                    if (namobj.includes('Hutan Produksi')) return { color: '#facc15', weight: 1, fillOpacity: 0.6 };
+                    if (namobj.includes('KSA') || namobj.includes('KPA')) return { color: '#9333ea', weight: 1, fillOpacity: 0.6 };
+                    if (namobj.includes('Areal Penggunaan Lain') || namobj.includes('APL')) return { color: '#a3a3a3', weight: 1, fillOpacity: 0.6 };
+
+                    return { color: '#15803d', weight: 1 }; // Fallback
+                },
+                // Dynamic Filter: Only show features that match ACTIVE sub-layers
+                filter: (feature: any) => {
+                    const props = feature.properties || {};
+                    const namobj = props.NAMOBJ || '';
+
+                    // Check if this feature matches any ACTIVE forest sub-layer
+                    if (activeLayers['hutan_lindung'] && namobj.includes('Hutan Lindung')) return true;
+                    if (activeLayers['hutan_produksi'] && namobj.includes('Hutan Produksi')) return true;
+                    if (activeLayers['hutan_konservasi'] && (namobj.includes('KSA') || namobj.includes('KPA'))) return true;
+                    if (activeLayers['apl'] && (namobj.includes('Areal Penggunaan Lain') || namobj.includes('APL'))) return true;
+
+                    return false;
+                }
+            });
+        }
+
+        return layers;
+    }, [layerGroups, activeLayers, layerOpacities]);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -110,52 +239,88 @@ const InfoTataRuang: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="grid lg:grid-cols-4 gap-8">
-                        {/* Control Panel */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 shadow-sm h-full max-h-[600px] flex flex-col">
-                                <h3 className="font-bold text-gray-900 mb-4 flex items-center flex-shrink-0">
-                                    <i className="fas fa-layer-group mr-2 text-blue-600"></i>
-                                    Kontrol Layer
-                                </h3>
-                                <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
-                                    {gisLayers.map(layer => (
-                                        <div key={layer.id} className="space-y-2">
-                                            <label
-                                                className={`flex items-center p-3 rounded-xl border transition-all cursor-pointer ${activeLayers[layer.name]
-                                                    ? 'bg-blue-50 border-blue-200 text-blue-900 shadow-sm'
-                                                    : 'bg-white border-transparent text-gray-600 hover:border-gray-200'
-                                                    }`}
-                                            >
-                                                <div className="relative flex items-center justify-center w-6 h-6 mr-3">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                                        checked={!!activeLayers[layer.name]}
-                                                        onChange={() => toggleLayer(layer.name)}
-                                                    />
-                                                </div>
-                                                <span className="flex-1 text-xs font-semibold truncate leading-tight">
-                                                    {layer.name}
-                                                </span>
-                                                <div className="w-3 h-3 rounded-full ml-2 shadow-sm" style={{ backgroundColor: layer.color }}></div>
-                                            </label>
+                    {/* Content Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
 
-                                            {activeLayers[layer.name] && (
-                                                <div className="px-3 pb-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Transparansi</span>
-                                                        <span className="text-[10px] font-black text-blue-600">{Math.round((layerOpacities[layer.name] ?? 0.3) * 100)}%</span>
-                                                    </div>
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="1"
-                                                        step="0.1"
-                                                        value={layerOpacities[layer.name] ?? 0.3}
-                                                        onChange={(e) => handleOpacityChange(layer.name, parseFloat(e.target.value))}
-                                                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                                    />
+                        {/* Sidebar / Controls */}
+                        <div className="lg:col-span-1 space-y-8">
+
+                            {/* Layer Control Panel */}
+                            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                                <div className="bg-blue-900 px-5 py-4 border-b border-blue-800 flex justify-between items-center">
+                                    <h3 className="font-bold text-white flex items-center gap-2">
+                                        <i className="fas fa-layer-group"></i>
+                                        Kontrol Layer
+                                    </h3>
+                                    <span className="text-xs bg-blue-800 text-blue-200 px-2 py-1 rounded-full">
+                                        {Object.values(activeLayers).filter(Boolean).length} Aktif
+                                    </span>
+                                </div>
+
+                                <div className="p-2 space-y-1 bg-gray-50 max-h-[600px] overflow-y-auto custom-scrollbar">
+                                    {layerGroups.map((group) => (
+                                        <div key={group.title} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                            <button
+                                                onClick={() => toggleGroup(group.title)}
+                                                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                                            >
+                                                <div className="flex items-center gap-2 font-semibold text-gray-700">
+                                                    <i className={`fas ${group.icon} text-blue-600 w-5 text-center`}></i>
+                                                    {group.title}
+                                                </div>
+                                                <i className={`fas fa-chevron-down transition-transform duration-200 text-gray-400 ${expandedGroups[group.title] ? 'rotate-180' : ''}`}></i>
+                                            </button>
+
+                                            {expandedGroups[group.title] && (
+                                                <div className="p-2 space-y-2 border-t border-gray-100">
+                                                    {group.layers.map((layer) => (
+                                                        <div key={layer.id} className="group p-2 rounded-md hover:bg-gray-50 transition-all border border-transparent hover:border-gray-100">
+                                                            <div className="flex items-start space-x-3">
+                                                                <div className="pt-1">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        id={layer.id}
+                                                                        checked={!!activeLayers[layer.id]}
+                                                                        onChange={() => toggleLayer(layer.id, layer.name)}
+                                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300 cursor-pointer"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <label htmlFor={layer.id} className="block text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                                                        {layer.name}
+                                                                    </label>
+
+                                                                    {activeLayers[layer.id] && (
+                                                                        <div className="mt-2 pl-1 pr-2">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <span className="text-xs text-gray-500">Transparansi</span>
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="0"
+                                                                                    max="1"
+                                                                                    step="0.1"
+                                                                                    value={layerOpacities[layer.id] !== undefined ? layerOpacities[layer.id] : 0.3}
+                                                                                    onChange={(e) => handleOpacityChange(layer.id, parseFloat(e.target.value))}
+                                                                                    className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                                                />
+                                                                                <span className="text-xs font-mono text-gray-600 w-8 text-right">
+                                                                                    {Math.round((layerOpacities[layer.id] !== undefined ? layerOpacities[layer.id] : 0.3) * 100)}%
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="mt-1 flex items-center gap-2">
+                                                                                <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-gray-100">
+                                                                                    <div
+                                                                                        className="h-full rounded-full"
+                                                                                        style={{ backgroundColor: layer.color, width: '100%', opacity: layerOpacities[layer.id] !== undefined ? layerOpacities[layer.id] : 0.3 }}
+                                                                                    ></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div>
@@ -163,25 +328,30 @@ const InfoTataRuang: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-blue-900 rounded-2xl p-6 text-white shadow-lg">
-                                <h4 className="font-bold mb-3 flex items-center text-sm uppercase tracking-wider">
-                                    <i className="fas fa-info-circle mr-2 text-yellow-400"></i>
-                                    Panduan Peta
-                                </h4>
-                                <ul className="text-sm space-y-3 text-blue-100">
-                                    <li className="flex items-start">
-                                        <i className="fas fa-mouse-pointer mt-1 mr-2 text-yellow-400 text-xs"></i>
-                                        <span>Klik pada objek untuk detail atribut</span>
-                                    </li>
-                                    <li className="flex items-start">
-                                        <i className="fas fa-magnifying-glass mt-1 mr-2 text-yellow-400 text-xs"></i>
-                                        <span>Gunakan scroll untuk zoom in/out</span>
-                                    </li>
-                                    <li className="flex items-start">
-                                        <i className="fas fa-arrows-alt mt-1 mr-2 text-yellow-400 text-xs"></i>
-                                        <span>Klik & tahan untuk menggeser peta</span>
-                                    </li>
-                                </ul>
+                            {/* Panduan Peta Section */}
+                            <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 mt-6">
+                                <div className="bg-blue-900 px-5 py-4 border-b border-blue-800">
+                                    <h4 className="font-bold text-white flex items-center gap-2">
+                                        <i className="fas fa-info-circle text-yellow-400"></i>
+                                        Panduan Peta
+                                    </h4>
+                                </div>
+                                <div className="p-4 bg-blue-800 text-blue-50">
+                                    <ul className="space-y-3 text-sm">
+                                        <li className="flex items-start">
+                                            <i className="fas fa-mouse-pointer mt-1 mr-2 text-yellow-400 text-xs w-4 text-center"></i>
+                                            <span>Klik pada objek untuk detail atribut</span>
+                                        </li>
+                                        <li className="flex items-start">
+                                            <i className="fas fa-search-plus mt-1 mr-2 text-yellow-400 text-xs w-4 text-center"></i>
+                                            <span>Gunakan scroll untuk zoom in/out</span>
+                                        </li>
+                                        <li className="flex items-start">
+                                            <i className="fas fa-arrows-alt mt-1 mr-2 text-yellow-400 text-xs w-4 text-center"></i>
+                                            <span>Klik & tahan untuk menggeser peta</span>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
 
@@ -204,10 +374,10 @@ const InfoTataRuang: React.FC = () => {
                             Buka Peta Mode Layar Penuh
                         </button>
                     </div>
-                </section>
+                </section >
 
                 {/* Legend */}
-                <section className="bg-gray-50 rounded-2xl p-6">
+                < section className="bg-gray-50 rounded-2xl p-6" >
                     <h3 className="text-xl font-bold text-gray-900 mb-4">Keterangan Legenda Peta:</h3>
                     <div className="grid md:grid-cols-2 gap-4">
                         {legendItems.map((item, idx) => (
@@ -217,10 +387,10 @@ const InfoTataRuang: React.FC = () => {
                             </div>
                         ))}
                     </div>
-                </section>
+                </section >
 
                 {/* 2. KKPR */}
-                <section className="bg-white rounded-3xl shadow-lg p-8 md:p-12">
+                < section className="bg-white rounded-3xl shadow-lg p-8 md:p-12" >
                     <h2 className="text-3xl font-bold text-blue-900 mb-6">
                         <i className="fas fa-file-contract mr-3 text-yellow-500"></i>
                         Kesesuaian Kegiatan Pemanfaatan Ruang (KKPR)
@@ -289,10 +459,10 @@ const InfoTataRuang: React.FC = () => {
                             <span className="text-gray-700 text-lg">Identitas Pemohon (KTP/NIB)</span>
                         </li>
                     </ul>
-                </section>
+                </section >
 
                 {/* 3. Pusat Unduhan Dokumen */}
-                <section className="bg-white rounded-3xl shadow-lg p-8 md:p-12">
+                < section className="bg-white rounded-3xl shadow-lg p-8 md:p-12" >
                     <h2 className="text-3xl font-bold text-blue-900 mb-6">
                         <i className="fas fa-download mr-3 text-yellow-500"></i>
                         Pusat Unduhan Dokumen Produk Hukum
@@ -326,10 +496,10 @@ const InfoTataRuang: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
-                </section>
+                </section >
 
                 {/* 4. Layanan Konsultasi */}
-                <section className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-3xl shadow-lg p-8 md:p-12 text-white">
+                < section className="bg-gradient-to-br from-blue-900 to-blue-800 rounded-3xl shadow-lg p-8 md:p-12 text-white" >
                     <h2 className="text-3xl font-bold mb-6">
                         <i className="fas fa-headset mr-3 text-yellow-400"></i>
                         Layanan Konsultasi & Cek Plot
@@ -376,10 +546,10 @@ const InfoTataRuang: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                </section>
+                </section >
 
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

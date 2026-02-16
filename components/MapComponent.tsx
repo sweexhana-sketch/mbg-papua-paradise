@@ -41,8 +41,10 @@ interface GeoJsonLayer {
     url: string;
     name: string;
     style?: L.PathOptions | ((feature: any) => L.PathOptions);
-    visible?: boolean;
+    visible: boolean;
     opacity?: number;
+    filter?: (feature: any) => boolean;
+    _updateKey?: string;
 }
 
 interface MapComponentProps {
@@ -146,6 +148,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 zoom={zoom}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
+                preferCanvas={true}
             >
                 <ChangeView center={center as [number, number]} zoom={zoom} />
                 <MapEvents onMapClick={() => setSelectedFeature(null)} />
@@ -171,12 +174,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
                 </LayersControl>
 
                 <MapResizer trigger={geoJsonLayers} />
-
                 {geoJsonLayers.map((layer, idx) => (
                     layer.visible && loadedLayers[layer.url] && (
                         <GeoJSON
-                            key={`${layer.url}-${idx}-${layer.visible}-${layer.opacity}-${selectedFeature?.id || 'none'}`}
+                            key={`${layer.name}-${idx}-${layer.visible}-${layer.opacity}-${selectedFeature?.id || 'none'}-${layer._updateKey || ''}`}
                             data={loadedLayers[layer.url]}
+                            filter={layer.filter}
                             style={(feature) => getFeatureStyle(feature, layer)}
                             onEachFeature={(feature, leafletLayer) => {
                                 leafletLayer.on({
@@ -192,35 +195,239 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
                                 if (feature.properties) {
                                     const props = feature.properties;
-                                    // Extract common road properties
-                                    const roadName = props.nm_jalan || props.Nm_Ruas || props.BRIDGE_NAM || 'Ruas Jalan';
-                                    const length = props.panjang_km || props.Panjang || props.BRIDGE_LEN;
-                                    const width = props.lebar_jalan_m || props.Lbr_Keras || props.BRIDGE_WID;
-                                    const condition = props.kondisi || props.Kon_Baik ? `Baik: ${props.Kon_Baik}%` : (props.BRIDGE_STA === 'N' ? 'Baik' : props.BRIDGE_STA) || '-';
+                                    let popupContent = '';
 
-                                    const popupContent = `
-                                        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 200px;">
-                                            <div style="background-color: ${layer.name === 'Jalan Nasional' ? '#eff6ff' : '#fef2f2'}; padding: 8px 12px; border-radius: 6px; border-left: 4px solid ${layer.name === 'Jalan Nasional' ? '#2563eb' : '#dc2626'}; margin-bottom: 8px;">
-                                                <div style="font-weight: 800; color: ${layer.name === 'Jalan Nasional' ? '#1e40af' : '#991b1b'}; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
-                                                    ${layer.name}
+                                    // Check if this is a Batas Desa layer
+                                    if (layer.name === 'Batas Desa' && props.WADMKD) {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 200px;">
+                                                <div style="background-color: #f1f5f9; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #94a3b8; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Kelurahan/Kampung
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.WADMKD}
+                                                    </div>
                                                 </div>
-                                                <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
-                                                    ${roadName}
+                                                
+                                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                    ${props.WADMKC ? `<span style="color: #64748b; font-weight: 500;">Kecamatan:</span> <span style="font-weight: 600; color: #334155;">${props.WADMKC}</span>` : ''}
+                                                    ${props.WADMKK ? `<span style="color: #64748b; font-weight: 500;">Kabupaten:</span> <span style="font-weight: 600; color: #334155;">${props.WADMKK}</span>` : ''}
+                                                    ${props.LUAS ? `<span style="color: #64748b; font-weight: 500;">Luas:</span> <span style="font-weight: 600; color: #334155;">${props.LUAS.toFixed(2)} km²</span>` : ''}
                                                 </div>
                                             </div>
-                                            
-                                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
-                                                ${length ? `<span style="color: #64748b; font-weight: 500;">Panjang:</span> <span style="font-weight: 600; color: #334155;">${length} km</span>` : ''}
-                                                ${width ? `<span style="color: #64748b; font-weight: 500;">Lebar:</span> <span style="font-weight: 600; color: #334155;">${width} m</span>` : ''}
-                                                ${condition ? `<span style="color: #64748b; font-weight: 500;">Kondisi:</span> <span style="font-weight: 600; color: ${condition.toString().toLowerCase().includes('baik') ? '#166534' : '#b91c1c'};">${condition}</span>` : ''}
+                                        `;
+                                    }
+                                    // Check if this is a Batas Kabupaten layer
+                                    else if (layer.name === 'Batas Kabupaten' && props.WADMKK) {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 200px;">
+                                                <div style="background-color: #fef2f2; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #dc2626; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Kabupaten/Kota
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.WADMKK}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                    ${props.WADMPR ? `<span style="color: #64748b; font-weight: 500;">Provinsi:</span> <span style="font-weight: 600; color: #334155;">${props.WADMPR}</span>` : ''}
+                                                    ${props.LUAS ? `<span style="color: #64748b; font-weight: 500;">Luas:</span> <span style="font-weight: 600; color: #334155;">${props.LUAS.toFixed(2)} km²</span>` : ''}
+                                                </div>
                                             </div>
+                                        `;
+                                    }
+                                    // Check if this is a Kemampuan Lahan layer
+                                    else if (layer.name === 'Kemampuan Lahan') {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #fef3c7; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #d97706; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Kemampuan Lahan
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.PL_SNI2014 || 'Tidak tersedia'}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style="background-color: #f0fdf4; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px;">
+                                                    <div style="font-size: 10px; color: #166534; font-weight: 600; margin-bottom: 2px;">JENIS BENTANG LAHAN</div>
+                                                    <div style="font-weight: 600; color: #15803d; font-size: 12px;">${props.Nama_BL || 'Tidak tersedia'}</div>
+                                                </div>
 
-                                            <div style="margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: right; border-top: 1px dashed #e2e8f0; padding-top: 4px;">
-                                                Klik untuk detail
+                                                ${props.C_DDP ? `
+                                                <div style="background-color: #eff6ff; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px;">
+                                                    <div style="font-size: 10px; color: #1e40af; font-weight: 600; margin-bottom: 2px;">TINGKAT KEPENTINGAN</div>
+                                                    <div style="font-weight: 600; color: #1d4ed8; font-size: 12px;">${props.C_DDP}</div>
+                                                </div>
+                                                ` : ''}
+
+                                                ${props.LUASHA ? `
+                                                <div style="padding: 4px 0; border-top: 1px solid #e5e7eb; margin-top: 6px;">
+                                                    <span style="color: #64748b; font-weight: 500; font-size: 11px;">Luas Area:</span> 
+                                                    <span style="font-weight: 600; color: #334155; font-size: 11px;">${props.LUASHA.toFixed(2)} Ha</span>
+                                                </div>
+                                                ` : ''}
                                             </div>
-                                        </div>
-                                    `;
-                                    leafletLayer.bindPopup(popupContent, { maxWidth: 300, className: 'custom-popup' });
+                                        `;
+                                    }
+                                    // Check if this is a Kawasan Hutan layer
+                                    else if (layer.name === 'Kawasan Hutan') {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #f0fdf4; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #15803d; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Kawasan Hutan
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.NAMOBJ || 'Kawasan Hutan'}
+                                                    </div>
+                                                </div>
+                                                
+                                                ${props.FUNGSIKWS ? `
+                                                <div style="background-color: #ecfdf5; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px;">
+                                                    <div style="font-size: 10px; color: #047857; font-weight: 600; margin-bottom: 2px;">FUNGSI KAWASAN</div>
+                                                    <div style="font-weight: 600; color: #059669; font-size: 12px;">${props.FUNGSIKWS === 1 ? 'Kawasan Konservasi' : 'Kawasan Lindung'}</div>
+                                                </div>
+                                                ` : ''}
+
+                                                ${props.LUAS_HA ? `
+                                                <div style="padding: 4px 0; border-top: 1px solid #e5e7eb; margin-top: 6px;">
+                                                    <span style="color: #64748b; font-weight: 500; font-size: 11px;">Luas Area:</span> 
+                                                    <span style="font-weight: 600; color: #334155; font-size: 11px;">${props.LUAS_HA.toFixed(2)} Ha</span>
+                                                </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    }
+                                    // Check if this is a Bendungan layer
+                                    else if (layer.name === 'Bendungan') {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #eff6ff; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #1d4ed8; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Bendungan
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.Bendung || 'Bendungan'}
+                                                    </div>
+                                                </div>
+                                                
+                                                ${props.Nama_DI ? `
+                                                <div style="background-color: #dbeafe; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px;">
+                                                    <div style="font-size: 10px; color: #1e40af; font-weight: 600; margin-bottom: 2px;">DAERAH IRIGASI</div>
+                                                    <div style="font-weight: 600; color: #1d4ed8; font-size: 12px;">${props.Nama_DI}</div>
+                                                </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    }
+                                    // Check if this is a Pengendali Banjir layer
+                                    else if (layer.name === 'Pengendali Banjir') {
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #ecfeff; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #0369a1; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #0c4a6e; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Pengendali Banjir
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${props.NAME || 'Pengendali Banjir'}
+                                                    </div>
+                                                </div>
+                                                
+                                                ${props.Lokasi ? `
+                                                <div style="background-color: #cffafe; padding: 6px 10px; border-radius: 4px; margin-bottom: 6px;">
+                                                    <div style="font-size: 10px; color: #0c4a6e; font-weight: 600; margin-bottom: 2px;">LOKASI</div>
+                                                    <div style="font-weight: 600; color: #0369a1; font-size: 12px;">${props.Lokasi}</div>
+                                                </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                                    }
+                                    // Check if this is a Jalan Nasional layer
+                                    else if (layer.name === 'Jalan Nasional') {
+                                        const roadName = props.nm_jalan || props.Nm_Ruas || 'Jalan Nasional';
+                                        const length = props.panjang_km || props.Panjang;
+                                        const width = props.lebar_jalan_m || props.Lbr_Keras;
+
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #eff6ff; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #2563eb; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Jalan Nasional
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${roadName}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                    ${length ? `<span style="color: #64748b; font-weight: 500;">Panjang:</span> <span style="font-weight: 600; color: #334155;">${typeof length === 'number' ? length.toFixed(2) : length} km</span>` : ''}
+                                                    ${width ? `<span style="color: #64748b; font-weight: 500;">Lebar:</span> <span style="font-weight: 600; color: #334155;">${typeof width === 'number' ? width.toFixed(2) : width} m</span>` : ''}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }
+                                    // Check if this is a Jalan Provinsi layer
+                                    else if (layer.name === 'Jalan Provinsi') {
+                                        const roadName = props.nm_jalan || props.Nm_Ruas || 'Jalan Provinsi';
+                                        const length = props.panjang_km || props.Panjang;
+                                        const width = props.lebar_jalan_m || props.Lbr_Keras;
+
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 220px;">
+                                                <div style="background-color: #fef2f2; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #dc2626; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        Jalan Provinsi
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${roadName}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                    ${length ? `<span style="color: #64748b; font-weight: 500;">Panjang:</span> <span style="font-weight: 600; color: #334155;">${typeof length === 'number' ? length.toFixed(2) : length} km</span>` : ''}
+                                                    ${width ? `<span style="color: #64748b; font-weight: 500;">Lebar:</span> <span style="font-weight: 600; color: #334155;">${typeof width === 'number' ? width.toFixed(2) : width} m</span>` : ''}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }
+                                    // For other layers (default fallback)
+                                    else {
+                                        // Extract common properties
+                                        const name = props.nm_jalan || props.Nm_Ruas || props.BRIDGE_NAM || props.NAME || 'Informasi';
+                                        const length = props.panjang_km || props.Panjang || props.BRIDGE_LEN;
+                                        const width = props.lebar_jalan_m || props.Lbr_Keras || props.BRIDGE_WID;
+                                        const condition = props.kondisi || props.Kon_Baik ? `Baik: ${props.Kon_Baik}%` : (props.BRIDGE_STA === 'N' ? 'Baik' : props.BRIDGE_STA) || '-';
+
+                                        popupContent = `
+                                            <div style="font-family: inherit; font-size: 13px; line-height: 1.5; text-align: left; min-width: 200px;">
+                                                <div style="background-color: #f8fafc; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #64748b; margin-bottom: 8px;">
+                                                    <div style="font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; margin-bottom: 2px;">
+                                                        ${layer.name}
+                                                    </div>
+                                                    <div style="font-weight: 700; font-size: 14px; color: #1f2937;">
+                                                        ${name}
+                                                    </div>
+                                                </div>
+
+                                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; padding: 0 4px;">
+                                                    ${length ? `<span style="color: #64748b; font-weight: 500;">Panjang:</span> <span style="font-weight: 600; color: #334155;">${length} km</span>` : ''}
+                                                    ${width ? `<span style="color: #64748b; font-weight: 500;">Lebar:</span> <span style="font-weight: 600; color: #334155;">${width} m</span>` : ''}
+                                                    ${condition ? `<span style="color: #64748b; font-weight: 500;">Kondisi:</span> <span style="font-weight: 600; color: ${condition.toString().toLowerCase().includes('baik') ? '#166534' : '#b91c1c'};">${condition}</span>` : ''}
+                                                </div>
+                                                
+                                                <div style="margin-top: 8px; font-size: 10px; color: #94a3b8; text-align: right; border-top: 1px dashed #e2e8f0; padding-top: 4px;">
+                                                    Klik untuk detail
+                                                </div>
+                                            </div>
+                                        `;
+                                    }
+
+                                    if (popupContent) {
+                                        leafletLayer.bindPopup(popupContent, { maxWidth: 300, className: 'custom-popup' });
+                                    }
                                 }
                             }}
                         />
